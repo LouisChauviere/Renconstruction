@@ -1,4 +1,4 @@
-# Gene reconstruction using stringtie and scallop
+# Gene reconstruction using StringTie and Scallop
 
 Script using the example from the protocole published by Perta et al, 2016 for genes reconstruction.
 
