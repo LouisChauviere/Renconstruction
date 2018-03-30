@@ -63,19 +63,23 @@ do
 	fastqc -o qc_results ${sample}_1.fastq >> $logfile
 	fastqc -o qc_results ${sample}_2.fastq >> $logfile
 	echo "fastqc done"
-	##echo "###########################"
-	##echo "copy to cluster"
-	##sshpass -p $password scp ${sample}_1.fastq moideen@goliath.sdv.univ-paris-diderot.fr:/scratch/user/moideen/k562/fastq/
-	##sshpass -p $password scp ${sample}_2.fastq moideen@goliath.sdv.univ-paris-diderot.fr:/scratch/user/moideen/k562/fastq/
-	##echo "copy done"
-	##rm ${sample}_1.fastq
-	##rm ${sample}_2.fastq
+done	
+
+
+for sample in "${sra[@]}" 
+do
 	echo "##########################"
 	echo "#                        #"
-	echo "# start HISAT2 alignment #"
+	echo "# start HISAT2 mapping   #"
 	echo "#                        #"
 	echo "##########################"
 	hisat2 -p 8 --dta --novel-splicesite-outfile ${sample}_novel_splice_sites_HISAT2.txt -x ${hisat_index} -1 ${sample}_1.fastq -2 ${sample}_2.fastq -S ${sample}_hg19.sam --summary-file /summary_HISAT2/${sample}.summary.txt >> $logfile
+	echo "HISAT2 mapping done"
+done
+
+#sort and index bam files
+for sample in "${sra[@]}" 
+do
 	echo "########################################"
 	echo "#                                      #"
 	echo "# start samtools sort & samtools index #"
@@ -83,8 +87,13 @@ do
 	echo "########################################"
 	samtools sort -@ 8 -o ${sample}_hg19.bam ${sample}_hg19.sam >> $logfile
 	samtools index ${sample}_hg19.bam >> $logfile
-	#rm ${sample}_hg19.sam
-	echo "HISAT + samtools DONE"
+	rm ${sample}_hg19.sam
+	echo "samtools sort and index DONE"
+done
+
+#StringTie reconstruction for each sample
+for sample in "${sra[@]}" 
+do
 	echo "#####################################"
 	echo "#                                   #"
 	echo "#  BEGIN stringtie reconstruction   #"
@@ -92,7 +101,12 @@ do
 	echo "#####################################"
 	stringtie -p 8 -o stringtie_${sample}_hg19.gtf -l ${sample} ${sample}_hg19.bam >> $logfile
 	echo "stringtie reconstruction DONE"
-	
+done
+
+
+#Scallop reconstruction for each sample
+for sample in "${sra[@]}" 
+do
 	echo "########################"
 	echo "#                      #"
 	echo "#    BEGIN scallop     #"
@@ -102,13 +116,12 @@ do
 	gffcompare -o $outcompare -r $refgtf scallop_${sample}_hg19.gtf
 	echo "scallop DONE"
 	echo "all DONE"
-	#fi
-	listMerge="${listMerge} ${sample}_hg19.bam"
-	#echo "?????????????????????,,;:zeofpzkeàoeafkezfk"	
+	listMerge="${listMerge} ${sample}_hg19.bam"	
 	echo $sample
 	echo $listMerge
 done
 
+#Merge bam files for full reconstruction by Scallop and StringTie
 echo "##############################"
 echo "#                            #"
 echo "# merging and reconstruction #"
@@ -129,4 +142,4 @@ stringtie -p 8 -o stringtie_${experiment}_merged_hg19.gtf ${experiment}.sorted.b
 ~/ngs_bin/scallop-0.10.2_linux_x86_64/scallop -i ${experiment}.sorted.bam -o scallop_${experiment}_merged_hg19.gtf --min_single_exon_coverage $min_single_exon_coverage >> $logfile
 gffcompare -o gffrefseq_${experiment}_scallop -r $refgtf scallop_${experiment}_merged_hg19.gtf
 
-echo "all DONE"
+echo "DONE"
